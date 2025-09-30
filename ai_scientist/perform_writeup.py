@@ -589,7 +589,7 @@ def perform_writeup(
 
         # Generate VLM-based descriptions but do not overwrite plot_names
         try:
-            vlm_client, vlm_model = create_vlm_client("gpt-4o-2024-05-13")
+            vlm_client, vlm_model = create_vlm_client(small_model)
             desc_map = {}
             for pf in plot_names:
                 ppath = osp.join(figures_dir, pf)
@@ -599,7 +599,7 @@ def perform_writeup(
                     "images": [ppath],
                     "caption": "No direct caption",
                 }
-                review_data = generate_vlm_img_review(img_dict, vlm_model, vlm_client)
+                review_data = generate__img_review(img_dict, vlm_model, vlm_client)
                 if review_data:
                     desc_map[pf] = review_data.get(
                         "Img_description", "No description found"

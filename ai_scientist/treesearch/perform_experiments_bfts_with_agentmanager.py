@@ -31,8 +31,11 @@ from .log_summarization import overall_summarize
 logger = logging.getLogger("ai-scientist")
 
 
-def journal_to_rich_tree(journal: Journal):
-    best_node = journal.get_best_node()
+def journal_to_rich_tree(journal: Journal, **model_kwargs):
+    if model_kwargs is not None:
+        best_node = journal.get_best_node(**model_kwargs)
+    else:
+        best_node = journal.get_best_node()
 
     def append_rec(node: Node, tree):
         if node.is_buggy:
@@ -117,6 +120,27 @@ def perform_experiments_bfts(config_path: str):
                     ) as f:
                         json.dump(summary, f, indent=2)
 
+
+            if cfg.agent.get("summary", None) is not None:
+                current_findings = journal.generate_summary(
+                    include_code=False, 
+                    **{
+                        "model": cfg.agent.summary.model, 
+                        "temp": cfg.agent.summary.temp
+                    }
+                )
+            else:
+                current_findings = journal.generate_summary(include_code=False)
+
+            if cfg.agent.get("select_node", None) is not None:
+                model_kwargs = {
+                    "model": cfg.agent.select_node.model,
+                    "temperature": cfg.agent.select_node.temp,
+                }
+                best_metric = journal.get_best_node(**model_kwargs)
+            else:
+                best_metric = journal.get_best_node()
+
             # Generate and save stage progress summary
             stage_summary = {
                 "stage": stage.name,
@@ -124,11 +148,11 @@ def perform_experiments_bfts(config_path: str):
                 "buggy_nodes": len(journal.buggy_nodes),
                 "good_nodes": len(journal.good_nodes),
                 "best_metric": (
-                    str(journal.get_best_node().metric)
-                    if journal.get_best_node()
+                    str(best_metric.metric)
+                    if best_metric
                     else "None"
                 ),
-                "current_findings": journal.generate_summary(include_code=False),
+                "current_findings": current_findings,
             }
 
             with open(notes_dir / "stage_progress.json", "w") as f:
@@ -151,7 +175,14 @@ def perform_experiments_bfts(config_path: str):
         )
 
         if current_journal:
-            tree = journal_to_rich_tree(current_journal)
+            if cfg.agent.get("select_node", None) is not None:
+                model_kwargs = {
+                    "model": cfg.agent.select_node.model,
+                    "temperature": cfg.agent.select_node.temp,
+                }
+                tree = journal_to_rich_tree(current_journal, **model_kwargs)
+            else:
+                tree = journal_to_rich_tree(current_journal)
         else:
             tree = Tree("[bold blue]No results yet")
 
@@ -217,7 +248,7 @@ def perform_experiments_bfts(config_path: str):
             baseline_summary,
             research_summary,
             ablation_summary,
-        ) = overall_summarize(manager.journals.items())
+        ) = overall_summarize(manager.journals.items(), cfg)
         draft_summary_path = cfg.log_dir / "draft_summary.json"
         baseline_summary_path = cfg.log_dir / "baseline_summary.json"
         research_summary_path = cfg.log_dir / "research_summary.json"

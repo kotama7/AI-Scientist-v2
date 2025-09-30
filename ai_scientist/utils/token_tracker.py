@@ -157,7 +157,7 @@ def track_token_usage(func):
         model = result.model
         timestamp = result.created
 
-        if hasattr(result, "usage"):
+        if hasattr(result, "usage") and result.usage.completion_tokens_details is not None:
             token_tracker.add_tokens(
                 model,
                 result.usage.prompt_tokens,
@@ -195,7 +195,7 @@ def track_token_usage(func):
         logging.info("args: ", args)
         logging.info("kwargs: ", kwargs)
 
-        if hasattr(result, "usage"):
+        if hasattr(result, "usage") and result.usage.completion_tokens_details is not None:
             token_tracker.add_tokens(
                 model,
                 result.usage.prompt_tokens,

@@ -344,7 +344,14 @@ Your research idea:\n\n
         self, current_substage: Stage, journal: Journal
     ) -> bool:
         """Check if the current sub-stage is complete"""
-        best_node = journal.get_best_node()
+        if self.cfg.agent.get("select_node", None) is not None:
+            model_kwargs = {
+                "model": self.cfg.agent.select_node.model,
+                "temperature": self.cfg.agent.select_node.temp,
+            }
+            best_node = journal.get_best_node(**model_kwargs)
+        else:
+            best_node = journal.get_best_node()
         if not best_node:
             return False, "No best node found"
 
@@ -442,7 +449,14 @@ Your research idea:\n\n
                 return True, "Found working implementation"
 
         if stage.stage_number == 2:
-            best_node = journal.get_best_node()
+            if self.cfg.agent.get("select_node", None) is not None:
+                model_kwargs = {
+                    "model": self.cfg.agent.select_node.model,
+                    "temperature": self.cfg.agent.select_node.temp,
+                }
+                best_node = journal.get_best_node(**model_kwargs)
+            else:
+                best_node = journal.get_best_node()
             if not best_node:
                 return False, "No best node found"
             if best_node == journal.nodes[0]:
@@ -498,7 +512,14 @@ Your research idea:\n\n
                 return False, "Error in stage 2 completion evaluation"
 
         if stage.stage_number == 3:
-            best_node = journal.get_best_node()
+            if self.cfg.agent.get("select_node", None) is not None:
+                model_kwargs = {
+                    "model": self.cfg.agent.select_node.model,
+                    "temperature": self.cfg.agent.select_node.temp,
+                }
+                best_node = journal.get_best_node(**model_kwargs)
+            else:
+                best_node = journal.get_best_node()
             if not best_node:
                 return False, "No best node found"
             if best_node == journal.nodes[0]:
@@ -539,7 +560,14 @@ Your research idea:\n\n
         """Get the best implementation from a completed stage"""
         if stage_name not in self.journals:
             return None
-        best_node = self.journals[stage_name].get_best_node()
+        if self.cfg.agent.get("select_node", None) is not None:
+            model_kwargs = {
+                "model": self.cfg.agent.select_node.model,
+                "temperature": self.cfg.agent.select_node.temp,
+            }
+            best_node = self.journals[stage_name].get_best_node(**model_kwargs)
+        else:
+            best_node = self.journals[stage_name].get_best_node()
         if best_node:
             # Create a clean copy of the node for the next stage
             copied_node = copy.deepcopy(best_node)
@@ -1018,13 +1046,23 @@ Your research idea:\n\n
         }
 
         try:
-            response = query(
-                system_message=prompt,
-                user_message=None,
-                func_spec=stage_config_spec,
-                model=self.cfg.agent.feedback.model,
-                temperature=self.cfg.agent.feedback.temp,
-            )
+            if self.cfg.agent.feedback.model.startswith("ollama/"):
+                model_name = self.cfg.agent.feedback.model.split("/")[1]
+                response = ollama_query(
+                    system_message=prompt,
+                    user_message=None,
+                    func_spec=stage_config_spec,
+                    model=model_name,
+                    temperature=self.cfg.agent.feedback.temp,
+                )
+            else:
+                response = query(
+                    system_message=prompt,
+                    user_message=None,
+                    func_spec=stage_config_spec,
+                    model=self.cfg.agent.feedback.model,
+                    temperature=self.cfg.agent.feedback.temp,
+                )
             return response
 
         except Exception as e:
@@ -1060,7 +1098,14 @@ Your research idea:\n\n
             if hasattr(node, "_vlm_feedback"):
                 metrics["vlm_feedback"].append(node._vlm_feedback)
 
-        best_node = journal.get_best_node()
+        if self.cfg.agent.get("select_node", None) is not None:
+            model_kwargs = {
+                "model": self.cfg.agent.select_node.model,
+                "temperature": self.cfg.agent.select_node.temp,
+            }
+            best_node = journal.get_best_node(**model_kwargs)
+        else:
+            best_node = journal.get_best_node()
         if best_node:
             metrics["best_metric"] = {
                 "value": best_node.metric.value,
