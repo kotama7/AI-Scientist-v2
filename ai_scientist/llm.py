@@ -61,6 +61,7 @@ AVAILABLE_LLMS = [
     # Deepseek models via Ollama
     "ollama/deepseek-r1:8b",
     "ollama/deepseek-r1:32b",
+    "ollama/deepseek-r1:70b",
     "ollama/deepseek-r1:671b",
 ]
 
@@ -93,7 +94,7 @@ def get_batch_responses_from_llm(
     if model.startswith("ollama/"):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
-            model=model.split("/")[-1],
+            model=model.replace("ollama/", ""),
             messages=[
                 {"role": "system", "content": system_message},
                 *new_msg_history,
@@ -208,7 +209,7 @@ def get_batch_responses_from_llm(
 def make_llm_call(client, model, temperature, system_message, prompt):
     if model.startswith("ollama/"):
         return client.chat.completions.create(
-            model=model.split("/")[-1],
+            model=model.replace("ollama/", ""),
             messages=[
                 {"role": "system", "content": system_message},
                 *prompt,
@@ -304,7 +305,7 @@ def get_response_from_llm(
     elif model.startswith("ollama/"):
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
-            model=model.split("/")[-1],
+            model=model.replace("ollama/", ""),
             messages=[
                 {"role": "system", "content": system_message},
                 *new_msg_history,

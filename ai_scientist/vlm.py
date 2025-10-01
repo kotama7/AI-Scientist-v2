@@ -4,6 +4,7 @@ import re
 import json
 import backoff
 import openai
+import os
 from PIL import Image
 from ai_scientist.utils.token_tracker import track_token_usage
 
@@ -22,9 +23,11 @@ AVAILABLE_VLMS = [
     "ollama/llama4:16x17b",
 
     # mistral
-    "ollama/mistral-small3.2:24b"
+    "ollama/mistral-small3.2:24b",
 
     # qwen
+    "ollama/qwen2.5vl:32b",
+
     "ollama/z-uo/qwen2.5vl_tools:32b",
 ]
 
@@ -50,7 +53,7 @@ def encode_image_to_base64(image_path: str) -> str:
 def make_llm_call(client, model, temperature, system_message, prompt):
     if model.startswith("ollama/"):
         return client.chat.completions.create(
-            model=model.split("/")[1],
+            model=model.replace("ollama/", ""),
             messages=[
                 {"role": "system", "content": system_message},
                 *prompt,
@@ -93,7 +96,7 @@ def make_llm_call(client, model, temperature, system_message, prompt):
 def make_vlm_call(client, model, temperature, system_message, prompt):
     if model.startswith("ollama/"):
         return client.chat.completions.create(
-            model=model.split("/")[1],
+            model=model.replace("ollama/", ""),
             messages=[
                 {"role": "system", "content": system_message},
                 *prompt,
@@ -300,7 +303,7 @@ def get_batch_responses_from_vlm(
 
         if model.startswith("ollama/"):
             response = client.chat.completions.create(
-                model=model.split("/")[1],
+                model=model.replace("ollama/", ""),
                 messages=[
                     {"role": "system", "content": system_message},
                     *new_msg_history,
