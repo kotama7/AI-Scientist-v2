@@ -107,6 +107,12 @@ def parse_arguments():
         help="Number of citation rounds to perform",
     )
     parser.add_argument(
+        "--model_writeup_small",
+        type=str,
+        default="gpt-4o-2024-05-13",
+        help="Smaller model to use for writeup",
+    )
+    parser.add_argument(
         "--model_review",
         type=str,
         default="gpt-4o-2024-11-20",
@@ -274,6 +280,7 @@ if __name__ == "__main__":
             if args.writeup_type == "normal":
                 writeup_success = perform_writeup(
                     base_folder=idea_dir,
+                    small_model=args.model_writeup_small,
                     big_model=args.model_writeup,
                     page_limit=8,
                     citations_text=citations_text,
@@ -281,6 +288,7 @@ if __name__ == "__main__":
             else:
                 writeup_success = perform_icbinb_writeup(
                     base_folder=idea_dir,
+                    small_model=args.model_writeup_small,
                     big_model=args.model_writeup,
                     page_limit=4,
                     citations_text=citations_text,

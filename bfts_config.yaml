@@ -74,3 +74,14 @@ agent:
     max_debug_depth: 3
     debug_prob: 0.5
     num_drafts: 3
+
+  # Options for summarizing findings and selecting the best node
+  # If not specified, the default behavior will be used.
+
+  # summary:
+  #   model: gpt-4o
+  #   temp: 0.3
+
+  # select_node:
+  #   model: gpt-4o
+  #   temp: 0.3

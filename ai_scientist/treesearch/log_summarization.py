@@ -10,8 +10,6 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..",
 sys.path.insert(0, parent_dir)
 from ai_scientist.llm import get_response_from_llm, extract_json_between_markers
 
-client = openai.OpenAI()
-model = "gpt-4o-2024-08-06"
 
 report_summarizer_sys_msg = """You are an expert machine learning researcher.
 You are given multiple experiment logs, each representing a node in a stage of exploring scientific ideas and implementations.
@@ -262,26 +260,51 @@ Ensure the JSON is valid and properly formatted, as it will be automatically par
 """
 
 
-def annotate_history(journal):
+def annotate_history(journal, cfg=None):
     for node in journal.nodes:
         if node.parent:
             max_retries = 3
             retry_count = 0
             while retry_count < max_retries:
                 try:
-                    response = get_response_from_llm(
-                        overall_plan_summarizer_prompt.format(
-                            prev_overall_plan=node.parent.overall_plan,
-                            current_plan=node.plan,
-                        ),
-                        client,
-                        model,
-                        report_summarizer_sys_msg,
-                    )
-                    node.overall_plan = extract_json_between_markers(response[0])[
-                        "overall_plan"
-                    ]
-                    break
+                    if cfg.agent.get("summary", None) is not None:
+                        if cfg.agent.summary.get("model", "").startswith("ollama/"):
+                            client  = openai.OpenAI(
+                                api_key=os.environ.get("OLLAMA_API_KEY", ""),
+                                base_url="http://localhost:11434/v1",
+                            )
+                        else:
+                            client = openai.OpenAI()
+                        model = cfg.agent.summary.model
+                        response = get_response_from_llm(
+                            overall_plan_summarizer_prompt.format(
+                                prev_overall_plan=node.parent.overall_plan,
+                                current_plan=node.plan,
+                            ),
+                            client,
+                            model,
+                            report_summarizer_sys_msg,
+                        )
+                        node.overall_plan = extract_json_between_markers(response[0])[
+                            "overall_plan"
+                        ]
+                        break
+                    else:
+                        model = "gpt-4o-2024-08-06"
+                        client = openai.OpenAI()
+                        response = get_response_from_llm(
+                            overall_plan_summarizer_prompt.format(
+                                prev_overall_plan=node.parent.overall_plan,
+                                current_plan=node.plan,
+                            ),
+                            client,
+                            model,
+                            report_summarizer_sys_msg,
+                        )
+                        node.overall_plan = extract_json_between_markers(response[0])[
+                            "overall_plan"
+                        ]
+                        break
                 except Exception as e:
                     retry_count += 1
                     if retry_count == max_retries:
@@ -294,14 +317,21 @@ def annotate_history(journal):
             node.overall_plan = node.plan
 
 
-def overall_summarize(journals):
+def overall_summarize(journals, cfg=None):
     from concurrent.futures import ThreadPoolExecutor
 
     def process_stage(idx, stage_tuple):
         stage_name, journal = stage_tuple
-        annotate_history(journal)
+        annotate_history(journal, cfg=cfg)
         if idx in [1, 2]:
-            best_node = journal.get_best_node()
+            if cfg.agent.get("select_node", None) is not None:
+                model_kwargs = {
+                    "model": cfg.agent.select_node.model,
+                    "temperature": cfg.agent.select_node.temp,
+                }
+                best_node = journal.get_best_node(**model_kwargs)
+            else:
+                best_node = journal.get_best_node()
             # get multi-seed results and aggregater node
             child_nodes = best_node.children
             multi_seed_nodes = [
@@ -336,7 +366,24 @@ def overall_summarize(journals):
             ]
             return [get_node_log(n) for n in good_leaf_nodes]
         elif idx == 0:
-            summary_json = get_stage_summary(journal, stage_name, model, client)
+            if cfg.agent.get("summary", None) is not None:
+                if cfg.agent.summary.get("model", "").startswith("ollama/"):
+                    client  = openai.OpenAI(
+                        api_key=os.environ.get("OLLAMA_API_KEY", ""),
+                        base_url="http://localhost:11434/v1",
+                    )
+                else:
+                    client = openai.OpenAI()
+                summary_json = get_stage_summary(
+                    journal,
+                    stage_name,
+                    cfg.agent.summary.model,
+                    client,
+                )
+            else:
+                model = "gpt-4o-2024-08-06"
+                client = openai.OpenAI()
+                summary_json = get_stage_summary(journal, stage_name, model, client)
             return summary_json
 
     from tqdm import tqdm

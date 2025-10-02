@@ -18,11 +18,12 @@ OPENAI_TIMEOUT_EXCEPTIONS = (
     openai.InternalServerError,
 )
 
-
-@once
-def _setup_openai_client():
+def _setup_openai_client(model: str | None):
     global _client
-    _client = openai.OpenAI(max_retries=0)
+    if model.startswith("ollama/"):
+        _client = openai.OpenAI(base_url="http://localhost:11434/v1", max_retries=0)
+    else:
+        _client = openai.OpenAI(max_retries=0)
 
 
 def query(
@@ -31,7 +32,7 @@ def query(
     func_spec: FunctionSpec | None = None,
     **model_kwargs,
 ) -> tuple[OutputType, float, int, int, dict]:
-    _setup_openai_client()
+    _setup_openai_client(model_kwargs.get("model"))
     filtered_kwargs: dict = select_values(notnone, model_kwargs)  # type: ignore
 
     messages = opt_messages_to_list(system_message, user_message)
@@ -40,6 +41,9 @@ def query(
         filtered_kwargs["tools"] = [func_spec.as_openai_tool_dict]
         # force the model to use the function
         filtered_kwargs["tool_choice"] = func_spec.openai_tool_choice_dict
+
+    if filtered_kwargs.get("model", "").startswith("ollama/"):
+       filtered_kwargs["model"] = filtered_kwargs["model"].replace("ollama/", "")
 
     t0 = time.time()
     completion = backoff_create(
