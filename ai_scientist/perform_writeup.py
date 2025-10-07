@@ -726,9 +726,9 @@ def perform_writeup(
             invalid_figs = used_figs - all_figs
 
             # Compile current version before reflection
-            compile_latex(latex_folder, base_pdf_file + f"_{compile_attempt}.pdf")
+            compile_latex(latex_folder, base_pdf_file + f"_reflection_{compile_attempt}.pdf")
             compile_attempt += 1
-            print(f"Compiled {base_pdf_file}_{compile_attempt}.pdf")
+            print(f"Compiled {base_pdf_file}_reflection_{compile_attempt}.pdf")
 
             # Detect where "Impact Statement" appears
             impact_loc = detect_pages_before_impact(latex_folder)
@@ -802,10 +802,10 @@ If you believe you are done, simply say: "I am done".
                         fo.write(final_text)
 
                     compile_latex(
-                        latex_folder, base_pdf_file + f"_{compile_attempt}.pdf"
+                        latex_folder, base_pdf_file + f"_reflection_{compile_attempt}.pdf"
                     )
                     compile_attempt += 1
-                    print(f"Compiled {base_pdf_file}_{compile_attempt}.pdf")
+                    print(f"Compiled {base_pdf_file}_reflection_{compile_attempt}.pdf")
                 else:
                     print(f"No changes in reflection step {i+1}.")
                     break
@@ -813,7 +813,7 @@ If you believe you are done, simply say: "I am done".
                 print(f"No valid LaTeX code block found in reflection step {i+1}.")
                 break
 
-        return osp.exists(base_pdf_file + f"_{compile_attempt-1}.pdf")
+        return osp.exists(base_pdf_file + f"_reflection_{compile_attempt-1}.pdf")
 
     except Exception:
         print("EXCEPTION in perform_writeup:")
