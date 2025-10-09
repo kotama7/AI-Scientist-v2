@@ -58,6 +58,13 @@ AVAILABLE_LLMS = [
     "ollama/qwen3:8b",
     "ollama/qwen3:32b",
     "ollama/qwen3:235b",
+
+    "ollama/qwen2.5vl:8b",
+    "ollama/qwen2.5vl:32b",
+
+    "ollama/qwen3-coder:70b",
+    "ollama/qwen3-coder:480b",
+
     # Deepseek models via Ollama
     "ollama/deepseek-r1:8b",
     "ollama/deepseek-r1:32b",
