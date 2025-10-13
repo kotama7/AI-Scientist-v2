@@ -599,7 +599,7 @@ def perform_writeup(
                     "images": [ppath],
                     "caption": "No direct caption",
                 }
-                review_data = generate__img_review(img_dict, vlm_model, vlm_client)
+                review_data = generate_vlm_img_review(img_dict, vlm_model, vlm_client)
                 if review_data:
                     desc_map[pf] = review_data.get(
                         "Img_description", "No description found"
