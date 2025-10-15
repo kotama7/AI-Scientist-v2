@@ -87,14 +87,7 @@ def cfg_to_tree_struct(cfg, jou: Journal, out_path: Path = None):
         print(f"Error in normalize_layout: {e}")
         raise
 
-    if cfg.agent.get("select_node", None) is not None:
-        model_kwargs = {
-            "model": cfg.agent.select_node.model,
-            "temperature": cfg.agent.select_node.temp,
-        }
-        best_node = jou.get_best_node(**model_kwargs)
-    else:   
-        best_node = jou.get_best_node()
+    best_node = jou.get_best_node(cfg=cfg)
     metrics = []
     is_best_node = []
 

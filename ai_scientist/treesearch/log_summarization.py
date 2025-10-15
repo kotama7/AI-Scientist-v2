@@ -324,14 +324,7 @@ def overall_summarize(journals, cfg=None):
         stage_name, journal = stage_tuple
         annotate_history(journal, cfg=cfg)
         if idx in [1, 2]:
-            if cfg.agent.get("select_node", None) is not None:
-                model_kwargs = {
-                    "model": cfg.agent.select_node.model,
-                    "temperature": cfg.agent.select_node.temp,
-                }
-                best_node = journal.get_best_node(**model_kwargs)
-            else:
-                best_node = journal.get_best_node()
+            best_node = journal.get_best_node(cfg=cfg)
             # get multi-seed results and aggregater node
             child_nodes = best_node.children
             multi_seed_nodes = [
