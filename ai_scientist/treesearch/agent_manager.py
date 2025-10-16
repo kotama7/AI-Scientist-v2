@@ -1018,23 +1018,13 @@ Your research idea:\n\n
         }
 
         try:
-            if self.cfg.agent.feedback.model.startswith("ollama/"):
-                model_name = self.cfg.agent.feedback.model.split("/")[1]
-                response = ollama_query(
-                    system_message=prompt,
-                    user_message=None,
-                    func_spec=stage_config_spec,
-                    model=model_name,
-                    temperature=self.cfg.agent.feedback.temp,
-                )
-            else:
-                response = query(
-                    system_message=prompt,
-                    user_message=None,
-                    func_spec=stage_config_spec,
-                    model=self.cfg.agent.feedback.model,
-                    temperature=self.cfg.agent.feedback.temp,
-                )
+            response = query(
+                system_message=prompt,
+                user_message=None,
+                func_spec=stage_config_spec,
+                model=self.cfg.agent.feedback.model,
+                temperature=self.cfg.agent.feedback.temp,
+            )
             return response
 
         except Exception as e:
