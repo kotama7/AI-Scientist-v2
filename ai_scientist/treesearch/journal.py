@@ -472,7 +472,7 @@ class Journal:
                 temperature = 0.3
             else:
                 model = cfg.agent.select_node.model
-                temperature = cfg.agent.select_node.temperature
+                temperature = cfg.agent.select_node.temp
             selection = query(
                 system_message=prompt,
                 user_message=None,
@@ -542,7 +542,7 @@ class Journal:
                 "3. Specific recommendations for future experiments based on both successes and failures"
             ),
             model=model_kwargs.get("model", "gpt-4o"),
-            temperature=model_kwargs.get("temperature", 0.3)
+            temperature=model_kwargs.get("temp", 0.3)
         )
 
         return summary
