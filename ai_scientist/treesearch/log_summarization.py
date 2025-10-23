@@ -2,23 +2,13 @@ import json
 import os
 import sys
 
-import openai
-
 from .journal import Node, Journal
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 sys.path.insert(0, parent_dir)
 from ai_scientist.llm import get_response_from_llm, extract_json_between_markers
+from ai_scientist.treesearch.backend import get_ai_client
 
-def _get_openai_client(model: str | None):
-    if model.startswith("ollama/"):
-        client = openai.OpenAI(
-            base_url="http://localhost:11434/v1",
-            api_key=os.environ.get("OLLAMA_API_KEY", ""),
-        )
-    else:
-        client = openai.OpenAI()
-    return client
 
 report_summarizer_sys_msg = """You are an expert machine learning researcher.
 You are given multiple experiment logs, each representing a node in a stage of exploring scientific ideas and implementations.
@@ -277,37 +267,23 @@ def annotate_history(journal, cfg=None):
             while retry_count < max_retries:
                 try:
                     if cfg.agent.get("summary", None) is not None:
-                        client = _get_openai_client(cfg.agent.summary.get("model", ""))
                         model = cfg.agent.summary.model
-                        response = get_response_from_llm(
-                            overall_plan_summarizer_prompt.format(
-                                prev_overall_plan=node.parent.overall_plan,
-                                current_plan=node.plan,
-                            ),
-                            client,
-                            model,
-                            report_summarizer_sys_msg,
-                        )
-                        node.overall_plan = extract_json_between_markers(response[0])[
-                            "overall_plan"
-                        ]
-                        break
                     else:
                         model = "gpt-4o-2024-08-06"
-                        client = openai.OpenAI()
-                        response = get_response_from_llm(
-                            overall_plan_summarizer_prompt.format(
-                                prev_overall_plan=node.parent.overall_plan,
-                                current_plan=node.plan,
-                            ),
-                            client,
-                            model,
-                            report_summarizer_sys_msg,
-                        )
-                        node.overall_plan = extract_json_between_markers(response[0])[
-                            "overall_plan"
-                        ]
-                        break
+                    client = get_ai_client(model)
+                    response = get_response_from_llm(
+                        overall_plan_summarizer_prompt.format(
+                            prev_overall_plan=node.parent.overall_plan,
+                            current_plan=node.plan,
+                        ),
+                        client,
+                        model,
+                        report_summarizer_sys_msg,
+                    )
+                    node.overall_plan = extract_json_between_markers(response[0])[
+                        "overall_plan"
+                    ]
+                    break
                 except Exception as e:
                     retry_count += 1
                     if retry_count == max_retries:
@@ -363,17 +339,11 @@ def overall_summarize(journals, cfg=None):
             return [get_node_log(n) for n in good_leaf_nodes]
         elif idx == 0:
             if cfg.agent.get("summary", None) is not None:
-                client = _get_openai_client(cfg.agent.summary.get("model", ""))
-                summary_json = get_stage_summary(
-                    journal,
-                    stage_name,
-                    cfg.agent.summary.model,
-                    client,
-                )
+                model = cfg.agent.summary.get("model", "")
             else:
                 model = "gpt-4o-2024-08-06"
-                client = openai.OpenAI()
-                summary_json = get_stage_summary(journal, stage_name, model, client)
+            client = get_ai_client(model)
+            summary_json = get_stage_summary(journal, stage_name, model, client)
             return summary_json
 
     from tqdm import tqdm
