@@ -5,8 +5,6 @@ from .utils import FunctionSpec, OutputType, opt_messages_to_list, backoff_creat
 from funcy import notnone, once, select_values
 import anthropic
 
-# _client: anthropic.Anthropic = None  # type: ignore
-_client: anthropic.AnthropicBedrock = None  # type: ignore
 
 ANTHROPIC_TIMEOUT_EXCEPTIONS = (
     anthropic.RateLimitError,
@@ -16,13 +14,9 @@ ANTHROPIC_TIMEOUT_EXCEPTIONS = (
     anthropic.APIStatusError,
 )
 
-
-@once
-def _setup_anthropic_client():
-    global _client
-    # _client = anthropic.Anthropic(max_retries=0)
-    _client = anthropic.AnthropicBedrock(max_retries=0)
-
+def get_ai_client(model : str, max_retries=2) -> anthropic.AnthropicBedrock:
+    client = anthropic.AnthropicBedrock(max_retries=max_retries)
+    return client
 
 def query(
     system_message: str | None,
@@ -30,7 +24,7 @@ def query(
     func_spec: FunctionSpec | None = None,
     **model_kwargs,
 ) -> tuple[OutputType, float, int, int, dict]:
-    _setup_anthropic_client()
+    client = get_ai_client(model_kwargs.get("model"), max_retries=0)
 
     filtered_kwargs: dict = select_values(notnone, model_kwargs)  # type: ignore
     if "max_tokens" not in filtered_kwargs:
@@ -54,7 +48,7 @@ def query(
 
     t0 = time.time()
     message = backoff_create(
-        _client.messages.create,
+        client.messages.create,
         ANTHROPIC_TIMEOUT_EXCEPTIONS,
         messages=messages,
         **filtered_kwargs,

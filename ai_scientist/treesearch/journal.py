@@ -2,7 +2,7 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Literal, Optional, Any
 import copy
 import os
 import json
@@ -417,7 +417,7 @@ class Journal:
         """Return a list of all metric values in the journal."""
         return [n.metric for n in self.nodes]
 
-    def get_best_node(self, only_good=True, use_val_metric_only=False) -> None | Node:
+    def get_best_node(self, only_good=True, use_val_metric_only=False, cfg=None) -> None | Node:
         """Return the best solution found so far."""
         if only_good:
             nodes = self.good_nodes
@@ -467,12 +467,18 @@ class Journal:
                 prompt["Candidates"] += candidate_info
 
         try:
+            if cfg is None or cfg.agent.get("select_node", None) is None:
+                model = "gpt-4o"
+                temperature = 0.3
+            else:
+                model = cfg.agent.select_node.model
+                temperature = cfg.agent.select_node.temp
             selection = query(
                 system_message=prompt,
                 user_message=None,
                 func_spec=node_selection_spec,
-                model="gpt-4o",
-                temperature=0.3,
+                model=model,
+                temperature=temperature
             )
 
             # Find and return the selected node
@@ -495,7 +501,7 @@ class Journal:
             logger.warning("Falling back to metric-based selection")
             return max(nodes, key=lambda n: n.metric)
 
-    def generate_summary(self, include_code: bool = False) -> str:
+    def generate_summary(self, include_code: bool = False, **model_kwargs) -> str:
         """Generate a summary of the research progress using LLM, including both successes and failures."""
         if not self.nodes:
             return "No experiments conducted yet."
@@ -535,8 +541,8 @@ class Journal:
                 "2. Common failure patterns and pitfalls to avoid\n"
                 "3. Specific recommendations for future experiments based on both successes and failures"
             ),
-            model="gpt-4o",
-            temperature=0.3,
+            model=model_kwargs.get("model", "gpt-4o"),
+            temperature=model_kwargs.get("temp", 0.3)
         )
 
         return summary
@@ -556,7 +562,7 @@ class Journal:
         """Convert journal to a JSON-serializable dictionary"""
         return {"nodes": [node.to_dict() for node in self.nodes]}
 
-    def save_experiment_notes(self, workspace_dir: str, stage_name: str):
+    def save_experiment_notes(self, workspace_dir: str, stage_name: str, cfg: Any) -> None:
         """Save experimental notes and summaries to files"""
         notes_dir = os.path.join(workspace_dir, "experiment_notes")
         os.makedirs(notes_dir, exist_ok=True)
@@ -582,16 +588,15 @@ class Journal:
                 ) as f:
                     json.dump(summary, f, indent=2)
 
-        # Generate and save stage summary using the already collected summaries
         summary_prompt = {
             "Introduction": "Synthesize the experimental findings from this stage",
             "Node Summaries": node_summaries,
             "Best Node": (
                 {
                     "id": self.get_best_node().id,
-                    "metric": str(self.get_best_node().metric),
+                    "metric": str(self.get_best_node(cfg=cfg).metric),
                 }
-                if self.get_best_node()
+                if self.get_best_node(cfg=cfg)
                 else None
             ),
         }
@@ -599,8 +604,8 @@ class Journal:
         stage_summary = query(
             system_message=summary_prompt,
             user_message="Generate a comprehensive summary of the experimental findings in this stage",
-            model="gpt-4",
-            temperature=0.3,
+            model=cfg.agent.summary.model if cfg.agent.get("summary", None) else "gpt-4o",
+            temperature=cfg.agent.summary.temp if cfg.agent.get("summary", None) else 0.3
         )
 
         with open(os.path.join(notes_dir, f"{stage_name}_summary.txt"), "w") as f:

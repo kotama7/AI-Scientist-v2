@@ -950,7 +950,7 @@ def perform_writeup(
 
         # Generate VLM-based descriptions
         try:
-            vlm_client, vlm_model = create_vlm_client("gpt-4o-2024-05-13")
+            vlm_client, vlm_model = create_vlm_client(small_model)
             desc_map = {}
             for pf in plot_names:
                 ppath = osp.join(figures_dir, pf)

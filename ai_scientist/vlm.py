@@ -4,6 +4,7 @@ import re
 import json
 import backoff
 import openai
+import os
 from PIL import Image
 from ai_scientist.utils.token_tracker import track_token_usage
 
@@ -15,6 +16,19 @@ AVAILABLE_VLMS = [
     "gpt-4o-2024-11-20",
     "gpt-4o-mini-2024-07-18",
     "o3-mini",
+
+    # Ollama models
+
+    # llama4
+    "ollama/llama4:16x17b",
+
+    # mistral
+    "ollama/mistral-small3.2:24b",
+
+    # qwen
+    "ollama/qwen2.5vl:32b",
+
+    "ollama/z-uo/qwen2.5vl_tools:32b",
 ]
 
 
@@ -37,7 +51,20 @@ def encode_image_to_base64(image_path: str) -> str:
 
 @track_token_usage
 def make_llm_call(client, model, temperature, system_message, prompt):
-    if "gpt" in model:
+    if model.startswith("ollama/"):
+        return client.chat.completions.create(
+            model=model.replace("ollama/", ""),
+            messages=[
+                {"role": "system", "content": system_message},
+                *prompt,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+            seed=0,
+        )
+    elif "gpt" in model:
         return client.chat.completions.create(
             model=model,
             messages=[
@@ -67,7 +94,17 @@ def make_llm_call(client, model, temperature, system_message, prompt):
 
 @track_token_usage
 def make_vlm_call(client, model, temperature, system_message, prompt):
-    if "gpt" in model:
+    if model.startswith("ollama/"):
+        return client.chat.completions.create(
+            model=model.replace("ollama/", ""),
+            messages=[
+                {"role": "system", "content": system_message},
+                *prompt,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+        )
+    elif "gpt" in model:
         return client.chat.completions.create(
             model=model,
             messages=[
@@ -166,6 +203,12 @@ def create_client(model: str) -> tuple[Any, str]:
     ]:
         print(f"Using OpenAI API with model {model}.")
         return openai.OpenAI(), model
+    elif model.startswith("ollama/"):
+        print(f"Using Ollama API with model {model}.")
+        return openai.OpenAI(
+            api_key=os.environ.get("OLLAMA_API_KEY", ""),
+            base_url="http://localhost:11434/v1"
+        ), model
     else:
         raise ValueError(f"Model {model} not supported.")
 
@@ -236,13 +279,7 @@ def get_batch_responses_from_vlm(
     if msg_history is None:
         msg_history = []
 
-    if model in [
-        "gpt-4o-2024-05-13",
-        "gpt-4o-2024-08-06",
-        "gpt-4o-2024-11-20",
-        "gpt-4o-mini-2024-07-18",
-        "o3-mini",
-    ]:
+    if model in AVAILABLE_VLMS:
         # Convert single image path to list
         if isinstance(image_paths, str):
             image_paths = [image_paths]
@@ -264,18 +301,31 @@ def get_batch_responses_from_vlm(
         # Construct message with all images
         new_msg_history = msg_history + [{"role": "user", "content": content}]
 
-        # Get multiple responses
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_message},
-                *new_msg_history,
-            ],
-            temperature=temperature,
-            max_tokens=MAX_NUM_TOKENS,
-            n=n_responses,
-            seed=0,
-        )
+        if model.startswith("ollama/"):
+            response = client.chat.completions.create(
+                model=model.replace("ollama/", ""),
+                messages=[
+                    {"role": "system", "content": system_message},
+                    *new_msg_history,
+                ],
+                temperature=temperature,
+                max_tokens=MAX_NUM_TOKENS,
+                n=n_responses,
+                seed=0,
+            )
+        else:
+            # Get multiple responses
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    *new_msg_history,
+                ],
+                temperature=temperature,
+                max_tokens=MAX_NUM_TOKENS,
+                n=n_responses,
+                seed=0,
+            )
 
         # Extract content from all responses
         contents = [r.message.content for r in response.choices]

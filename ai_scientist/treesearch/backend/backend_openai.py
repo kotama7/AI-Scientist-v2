@@ -9,7 +9,6 @@ from rich import print
 
 logger = logging.getLogger("ai-scientist")
 
-_client: openai.OpenAI = None  # type: ignore
 
 OPENAI_TIMEOUT_EXCEPTIONS = (
     openai.RateLimitError,
@@ -18,11 +17,15 @@ OPENAI_TIMEOUT_EXCEPTIONS = (
     openai.InternalServerError,
 )
 
-
-@once
-def _setup_openai_client():
-    global _client
-    _client = openai.OpenAI(max_retries=0)
+def get_ai_client(model: str, max_retries=2) -> openai.OpenAI:
+    if model.startswith("ollama/"):
+        client = openai.OpenAI(
+            base_url="http://localhost:11434/v1", 
+            max_retries=max_retries
+        )
+    else:
+        client = openai.OpenAI(max_retries=max_retries)
+    return client
 
 
 def query(
@@ -31,7 +34,7 @@ def query(
     func_spec: FunctionSpec | None = None,
     **model_kwargs,
 ) -> tuple[OutputType, float, int, int, dict]:
-    _setup_openai_client()
+    client = get_ai_client(model_kwargs.get("model"), max_retries=0)
     filtered_kwargs: dict = select_values(notnone, model_kwargs)  # type: ignore
 
     messages = opt_messages_to_list(system_message, user_message)
@@ -41,9 +44,12 @@ def query(
         # force the model to use the function
         filtered_kwargs["tool_choice"] = func_spec.openai_tool_choice_dict
 
+    if filtered_kwargs.get("model", "").startswith("ollama/"):
+       filtered_kwargs["model"] = filtered_kwargs["model"].replace("ollama/", "")
+
     t0 = time.time()
     completion = backoff_create(
-        _client.chat.completions.create,
+        client.chat.completions.create,
         OPENAI_TIMEOUT_EXCEPTIONS,
         messages=messages,
         **filtered_kwargs,

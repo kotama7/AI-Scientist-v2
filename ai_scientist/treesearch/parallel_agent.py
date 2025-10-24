@@ -2022,7 +2022,7 @@ class ParallelAgent:
                     continue
 
                 # Get best node from unprocessed tree if possible
-                best_node = self.journal.get_best_node()
+                best_node = self.journal.get_best_node(cfg=self.cfg)
                 tree_root = best_node
                 while tree_root.parent:
                     tree_root = tree_root.parent
@@ -2069,7 +2069,16 @@ class ParallelAgent:
             else:
                 node_data_list.append(None)  # None means new draft
 
-        memory_summary = self.journal.generate_summary(include_code=False)
+        if self.cfg.agent.get("summary", None) is not None:
+            memory_summary = self.journal.generate_summary(
+                include_code=False, 
+                **{
+                    "model": self.cfg.agent.summary.model, 
+                    "temp": self.cfg.agent.summary.temp
+                }
+            )
+        else:
+            memory_summary = self.journal.generate_summary(include_code=False)
 
         print("Submitting tasks to process pool")
         futures = []

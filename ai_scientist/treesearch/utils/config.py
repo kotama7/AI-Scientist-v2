@@ -70,6 +70,8 @@ class AgentConfig:
     type: str
     multi_seed_eval: dict[str, int]
 
+    summary: Optional[StageConfig] = None
+    select_node: Optional[StageConfig] = None
 
 @dataclass
 class ExecConfig:
@@ -240,7 +242,7 @@ def save_run(cfg: Config, journal, stage_name: str = None):
         raise
     # save the best found solution
     try:
-        best_node = journal.get_best_node(only_good=False)
+        best_node = journal.get_best_node(only_good=False, cfg=cfg)
         if best_node is not None:
             for existing_file in save_dir.glob("best_solution_*.py"):
                 existing_file.unlink()

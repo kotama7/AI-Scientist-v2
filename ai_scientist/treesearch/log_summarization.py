@@ -2,16 +2,13 @@ import json
 import os
 import sys
 
-import openai
-
 from .journal import Node, Journal
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 sys.path.insert(0, parent_dir)
 from ai_scientist.llm import get_response_from_llm, extract_json_between_markers
+from ai_scientist.treesearch.backend import get_ai_client
 
-client = openai.OpenAI()
-model = "gpt-4o-2024-08-06"
 
 report_summarizer_sys_msg = """You are an expert machine learning researcher.
 You are given multiple experiment logs, each representing a node in a stage of exploring scientific ideas and implementations.
@@ -262,13 +259,18 @@ Ensure the JSON is valid and properly formatted, as it will be automatically par
 """
 
 
-def annotate_history(journal):
+def annotate_history(journal, cfg=None):
     for node in journal.nodes:
         if node.parent:
             max_retries = 3
             retry_count = 0
             while retry_count < max_retries:
                 try:
+                    if cfg.agent.get("summary", None) is not None:
+                        model = cfg.agent.summary.model
+                    else:
+                        model = "gpt-4o-2024-08-06"
+                    client = get_ai_client(model)
                     response = get_response_from_llm(
                         overall_plan_summarizer_prompt.format(
                             prev_overall_plan=node.parent.overall_plan,
@@ -294,14 +296,14 @@ def annotate_history(journal):
             node.overall_plan = node.plan
 
 
-def overall_summarize(journals):
+def overall_summarize(journals, cfg=None):
     from concurrent.futures import ThreadPoolExecutor
 
     def process_stage(idx, stage_tuple):
         stage_name, journal = stage_tuple
-        annotate_history(journal)
+        annotate_history(journal, cfg=cfg)
         if idx in [1, 2]:
-            best_node = journal.get_best_node()
+            best_node = journal.get_best_node(cfg=cfg)
             # get multi-seed results and aggregater node
             child_nodes = best_node.children
             multi_seed_nodes = [
@@ -336,6 +338,11 @@ def overall_summarize(journals):
             ]
             return [get_node_log(n) for n in good_leaf_nodes]
         elif idx == 0:
+            if cfg.agent.get("summary", None) is not None:
+                model = cfg.agent.summary.get("model", "")
+            else:
+                model = "gpt-4o-2024-08-06"
+            client = get_ai_client(model)
             summary_json = get_stage_summary(journal, stage_name, model, client)
             return summary_json
 

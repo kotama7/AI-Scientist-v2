@@ -51,6 +51,25 @@ AVAILABLE_LLMS = [
     "gemini-2.0-flash",
     "gemini-2.5-flash-preview-04-17",
     "gemini-2.5-pro-preview-03-25",
+    # GPT-OSS models via Ollama
+    "ollama/gpt-oss:20b",
+    "ollama/gpt-oss:120b",
+    # Qwen models via Ollama
+    "ollama/qwen3:8b",
+    "ollama/qwen3:32b",
+    "ollama/qwen3:235b",
+
+    "ollama/qwen2.5vl:8b",
+    "ollama/qwen2.5vl:32b",
+
+    "ollama/qwen3-coder:70b",
+    "ollama/qwen3-coder:480b",
+
+    # Deepseek models via Ollama
+    "ollama/deepseek-r1:8b",
+    "ollama/deepseek-r1:32b",
+    "ollama/deepseek-r1:70b",
+    "ollama/deepseek-r1:671b",
 ]
 
 
@@ -79,7 +98,24 @@ def get_batch_responses_from_llm(
     if msg_history is None:
         msg_history = []
 
-    if "gpt" in model:
+    if model.startswith("ollama/"):
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model.replace("ollama/", ""),
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=n_responses,
+            stop=None,
+        )
+        content = [r.message.content for r in response.choices]
+        new_msg_history = [
+            new_msg_history + [{"role": "assistant", "content": c}] for c in content
+        ]
+    elif "gpt" in model:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = client.chat.completions.create(
             model=model,
@@ -178,7 +214,19 @@ def get_batch_responses_from_llm(
 
 @track_token_usage
 def make_llm_call(client, model, temperature, system_message, prompt):
-    if "gpt" in model:
+    if model.startswith("ollama/"):
+        return client.chat.completions.create(
+            model=model.replace("ollama/", ""),
+            messages=[
+                {"role": "system", "content": system_message},
+                *prompt,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+        )
+    elif "gpt" in model:
         return client.chat.completions.create(
             model=model,
             messages=[
@@ -261,6 +309,21 @@ def get_response_from_llm(
                 ],
             }
         ]
+    elif model.startswith("ollama/"):
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=model.replace("ollama/", ""),
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+        )
+        content = response.choices[0].message.content
+        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
     elif "gpt" in model:
         new_msg_history = msg_history + [{"role": "user", "content": msg}]
         response = make_llm_call(
@@ -386,7 +449,7 @@ def get_response_from_llm(
     return content, new_msg_history
 
 
-def extract_json_between_markers(llm_output: str) -> dict | None:
+def extract_json_between_markers(llm_output: str) -> dict | None: 
     # Regular expression pattern to find JSON content between ```json and ```
     json_pattern = r"```json(.*?)```"
     matches = re.findall(json_pattern, llm_output, re.DOTALL)
@@ -426,6 +489,12 @@ def create_client(model) -> tuple[Any, str]:
         client_model = model.split("/")[-1]
         print(f"Using Vertex AI with model {client_model}.")
         return anthropic.AnthropicVertex(), client_model
+    elif model.startswith("ollama/"):
+        print(f"Using Ollama with model {model}.")
+        return openai.OpenAI(
+            api_key=os.environ.get("OLLAMA_API_KEY", ""),
+            base_url="http://localhost:11434/v1",
+        ), model
     elif "gpt" in model:
         print(f"Using OpenAI API with model {model}.")
         return openai.OpenAI(), model
