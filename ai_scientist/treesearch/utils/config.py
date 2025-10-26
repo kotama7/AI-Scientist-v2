@@ -242,14 +242,7 @@ def save_run(cfg: Config, journal, stage_name: str = None):
         raise
     # save the best found solution
     try:
-        if cfg.agent.get("select_node", None) is not None:
-            model_kwargs = {
-                "model": cfg.agent.select_node.model,
-                "temperature": cfg.agent.select_node.temp,
-            }
-            best_node = journal.get_best_node(only_good=False, **model_kwargs)
-        else:
-            best_node = journal.get_best_node(only_good=False)
+        best_node = journal.get_best_node(only_good=False, cfg=cfg)
         if best_node is not None:
             for existing_file in save_dir.glob("best_solution_*.py"):
                 existing_file.unlink()

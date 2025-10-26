@@ -2022,14 +2022,7 @@ class ParallelAgent:
                     continue
 
                 # Get best node from unprocessed tree if possible
-                if self.cfg.agent.get("select_node", None) is not None:
-                    model_kwargs = {
-                        "model": self.cfg.agent.select_node.model,
-                        "temperature": self.cfg.agent.select_node.temp,
-                    }
-                    best_node = self.journal.get_best_node(**model_kwargs)
-                else:
-                    best_node = self.journal.get_best_node()
+                best_node = self.journal.get_best_node(cfg=self.cfg)
                 tree_root = best_node
                 while tree_root.parent:
                     tree_root = tree_root.parent
