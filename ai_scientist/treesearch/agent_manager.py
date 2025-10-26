@@ -13,6 +13,17 @@ import json
 from rich import print
 from .utils.serialize import parse_markdown_to_dict
 from .utils.metric import WorstMetricValue
+from ai_scientist.prompt_loader import load_prompt
+
+TASK_DESCRIPTION_TEMPLATE = load_prompt(
+    "treesearch/agent_manager/task_description"
+)
+STAGE_GOALS = {
+    1: load_prompt("treesearch/agent_manager/stage1_goals"),
+    2: load_prompt("treesearch/agent_manager/stage2_goals"),
+    3: load_prompt("treesearch/agent_manager/stage3_goals"),
+    4: load_prompt("treesearch/agent_manager/stage4_goals"),
+}
 
 
 logger = logging.getLogger(__name__)
@@ -146,25 +157,8 @@ class AgentManager:
             3: "creative_research",
             4: "ablation_studies",
         }
-        self.main_stage_goals: Dict[int, str] = {
-            1: """
-                - Focus on getting basic working implementation
-                - Use a simple dataset
-                - Aim for basic functional correctness
-                - If you are given \"Code To Use\", you can directly use it as a starting point.""",
-            2: """
-                - Change hyperparameters such as learning rate, number of epochs, batch size, etc. to improve the performance
-                - DO NOT change the model architecture from the previous stage
-                - Introduce TWO more new datasets from HuggingFace test the model. Try very hard to think what Huggingface datasets can be used here for testing.""",
-            3: """
-                - Explore novel improvements
-                - Come up with experiments to reveal new insights
-                - Be creative and think outside the box
-                - MAKE SURE you use THREE HuggingFace dataset in total to test your models""",
-            4: """
-                - Conduct systematic component analysis that reveals the contribution of each part
-                - Use the same datasets you used from the previous stage""",
-        }
+        self.main_stage_goals: Dict[int, str] = STAGE_GOALS
+
         # Create initial stage
         self._create_initial_stage()
 
@@ -177,11 +171,7 @@ class AgentManager:
         )
 
     def _get_task_desc_str(self):
-        task_desc = """You are an ambitious AI researcher who is looking to publish a paper that will contribute significantly to the field.
-You have an idea and you want to conduct creative experiments to gain scientific insights.
-Your aim is to run experiments to gather sufficient results for a top conference paper.
-Your research idea:\n\n
-"""
+        task_desc = TASK_DESCRIPTION_TEMPLATE
         task_desc += (
             "Title:\n"
             + self.task_desc["Title"]
