@@ -18,6 +18,9 @@ template_instructions = load_prompt("review/template_instructions")
 neurips_form = load_prompt("review/neurips_form") + "\n" + template_instructions
 reviewer_reflection_prompt = load_prompt("review/reviewer_reflection_prompt")
 meta_reviewer_system_prompt = load_prompt("review/meta_reviewer_system_prompt")
+ENSEMBLE_AGGREGATION_THOUGHT_TEMPLATE = load_prompt(
+    "review/ensemble_aggregation_thought"
+).strip()
 
 reviewer_system_prompt_base = REVIEW_BASE_PROMPT
 reviewer_system_prompt_neg = f"{reviewer_system_prompt_base} {REVIEW_NEG_SUFFIX}"
@@ -88,18 +91,14 @@ Here is the paper you are asked to review:
             if scores:
                 review[score] = int(round(np.mean(scores)))
         msg_history = msg_histories[0][:-1]
+        aggregation_thought = ENSEMBLE_AGGREGATION_THOUGHT_TEMPLATE.format(
+            num_reviews=num_reviews_ensemble,
+            review_json=json.dumps(review),
+        )
         msg_history += [
             {
                 "role": "assistant",
-                "content": f"""
-THOUGHT:
-I will start by aggregating the opinions of {num_reviews_ensemble} reviewers that I previously obtained.
-
-REVIEW JSON:
-```json
-{json.dumps(review)}
-```
-""",
+                "content": aggregation_thought,
             }
         ]
     else:
