@@ -34,6 +34,12 @@ IMG_CAP_SELECTION_PROMPT_TEMPLATE = load_prompt(
     "vlm_review/img_cap_selection_prompt"
 )
 IMG_REVIEW_PROMPT_TEMPLATE = load_prompt("vlm_review/img_review_prompt")
+DUPLICATE_FIGURES_SYSTEM_PROMPT = load_prompt(
+    "vlm_review/detect_duplicate_figures_system"
+).strip()
+DUPLICATE_FIGURES_USER_PROMPT = load_prompt(
+    "vlm_review/detect_duplicate_figures_user"
+).strip()
 
 
 def extract_figure_screenshots(
@@ -284,20 +290,14 @@ def detect_duplicate_figures(client, client_model, pdf_path):
     messages = [
         {
             "role": "system",
-            "content": (
-                "You are an expert at identifying duplicate or highly similar images. "
-                "Please analyze these images and determine if they are duplicates or variations of the same visualization. "
-                "Response format: reasoning, followed by `Duplicate figures: <list of duplicate figure names>`."
-                "Make sure you use the exact figure names (e.g. Figure 1, Figure 2b, etc.) as they appear in the paper."
-                "If you find no duplicates, respond with `No duplicates found`."
-            ),
+            "content": DUPLICATE_FIGURES_SYSTEM_PROMPT,
         },
         {
             "role": "user",
             "content": [
                 {
                     "type": "text",
-                    "text": "Are any of these images duplicates or highly similar? If so, please identify which ones are similar and explain why. Focus on content similarity, not just visual style.",
+                    "text": DUPLICATE_FIGURES_USER_PROMPT,
                 }
             ],
         },
