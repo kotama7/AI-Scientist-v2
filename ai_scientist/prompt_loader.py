@@ -1,6 +1,8 @@
+import json
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 
 class PromptNotFoundError(FileNotFoundError):
@@ -57,3 +59,33 @@ def format_prompt(name: str, **kwargs) -> str:
     """
 
     return load_prompt(name).format(**kwargs)
+
+
+def load_prompt_lines(name: str) -> list[str]:
+    """
+    Load a prompt template and return it as a list of lines.
+
+    Args:
+        name: Relative path (without extension) to the prompt file.
+
+    Returns:
+        List of lines preserving indentation and empty lines.
+    """
+
+    content = load_prompt(name)
+    # Preserve indentation and intentional blank lines
+    return content.splitlines()
+
+
+def load_prompt_json(name: str) -> Any:
+    """
+    Load and parse a JSON prompt template.
+
+    Args:
+        name: Relative path (including .json if needed) to the prompt file.
+
+    Returns:
+        The parsed JSON content.
+    """
+
+    return json.loads(load_prompt(name))
