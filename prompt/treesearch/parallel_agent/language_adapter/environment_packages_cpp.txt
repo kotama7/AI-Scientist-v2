@@ -1,0 +1,12 @@
+Eigen
+Armadillo
+OpenBLAS
+Boost
+fmt
+spdlog
+nlohmann/json
+xtensor
+torch
+OpenCV
+dlib
+libtorch

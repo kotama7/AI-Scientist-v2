@@ -30,9 +30,6 @@ ExecCallbackType = Callable[[str, bool], ExecutionResult]
 
 PROMPT_BASE = "treesearch/parallel_agent/"
 
-ENV_PACKAGES = tuple(load_prompt_lines(PROMPT_BASE + "environment/packages"))
-ENV_MESSAGE = load_prompt(PROMPT_BASE + "environment/message").rstrip("\n")
-
 IMPLEMENTATION_GUIDELINE_PRE = tuple(
     load_prompt_lines(PROMPT_BASE + "implementation_guideline/pre")
 )
@@ -406,14 +403,39 @@ class MinimalAgent:
         self.data_preview = None
 
     @property
+    def code_language(self) -> str:
+        return getattr(self.cfg.exec, "language", "python")
+
+    @property
     def _prompt_environment(self):
-        pkgs = list(ENV_PACKAGES)
+        if self.cfg.exec.env_packages_template:
+            package_template = self.cfg.exec.env_packages_template
+        else:
+            package_template = "treesearch/parallel_agent/environment/packages"
+
+        packages = load_prompt_lines(package_template)
+
+        if self.cfg.exec.env_packages_template:
+            env_message_template = (
+                "treesearch/parallel_agent/environment/message_cpp"
+                if "cpp" in package_template
+                else "treesearch/parallel_agent/environment/message"
+            )
+        else:
+            env_message_template = "treesearch/parallel_agent/environment/message"
+
+        message = load_prompt(env_message_template).rstrip("\n")
+
+        pkgs = list(packages)
         random.shuffle(pkgs)
         pkg_str = ", ".join([f"`{p}`" for p in pkgs])
 
-        message = ENV_MESSAGE
+        if "{pkg_str}" in message:
+            rendered_message = message.replace("{pkg_str}", pkg_str)
+        else:
+            rendered_message = f"{message}\nAvailable packages: {pkg_str}"
 
-        return {"Installed Packages": message.format(pkg_str=pkg_str)}
+        return {"Installed Packages": rendered_message}
 
     @property
     def _prompt_impl_guideline(self):
@@ -498,7 +520,7 @@ class MinimalAgent:
         prompt: Any = {
             "Introduction": DEBUG_INTRO,
             "Research idea": self.task_desc,
-            "Previous (buggy) implementation": wrap_code(parent_node.code),
+            "Previous (buggy) implementation": wrap_code(parent_node.code, lang=self.code_language),
             "Execution output": wrap_code(parent_node.term_out, lang=""),
             "Feedback based on generated plots": parent_node.vlm_feedback_summary,
             "Feedback about execution time": parent_node.exec_time_feedback,
@@ -524,7 +546,7 @@ class MinimalAgent:
             "Instructions": {},
         }
         prompt["Previous solution"] = {
-            "Code": wrap_code(parent_node.code),
+            "Code": wrap_code(parent_node.code, lang=self.code_language),
         }
 
         prompt["Instructions"] |= self._prompt_resp_fmt
@@ -551,7 +573,7 @@ class MinimalAgent:
         intro_prefix = HYPERPARAM_NODE_INTRO_PREFIX
         prompt: Any = {
             "Introduction": intro_prefix + hyperparam_idea.name + ". " + hyperparam_idea.description,
-            "Base code you are working on": wrap_code(parent_node.code),
+            "Base code you are working on": wrap_code(parent_node.code, lang=self.code_language),
             "Instructions": {},
         }
         prompt["Instructions"]["Implementation guideline"] = list(HYPERPARAM_NODE_INSTRUCTIONS)
@@ -568,7 +590,7 @@ class MinimalAgent:
         intro_prefix = ABLATION_NODE_INTRO_PREFIX
         prompt: Any = {
             "Introduction": intro_prefix + ablation_idea.name + ". " + ablation_idea.description,
-            "Base code you are working on": wrap_code(parent_node.code),
+            "Base code you are working on": wrap_code(parent_node.code, lang=self.code_language),
             "Instructions": {},
         }
         prompt["Instructions"]["Implementation guideline"] = list(ABLATION_NODE_INSTRUCTIONS)
@@ -592,7 +614,7 @@ class MinimalAgent:
                 temperature=self.cfg.agent.code.temp,
             )
 
-            code = extract_code(completion_text)
+            code = extract_code(completion_text, language=self.code_language)
             nl_text = extract_text_up_to_code(completion_text)
 
             if code and nl_text:
@@ -601,7 +623,7 @@ class MinimalAgent:
 
             print("Plan + code extraction failed, retrying...")
             prompt["Parsing Feedback"] = (
-                "The code extraction failed. Make sure to use the format ```python ... ``` for the code blocks."
+                f"The code extraction failed. Make sure to use the format ```{self.code_language} ... ``` for the code blocks."
             )
         print("Final plan + code extraction attempt failed, giving up...")
         return "", completion_text  # type: ignore
@@ -616,7 +638,7 @@ class MinimalAgent:
         prompt = {
             "Introduction": EXECUTION_REVIEW_INTRO,
             "Research idea": self.task_desc,
-            "Implementation": wrap_code(node.code),
+            "Implementation": wrap_code(node.code, lang=self.code_language),
             "Execution output": wrap_code(node.term_out, lang=""),
         }
 
@@ -902,7 +924,7 @@ class MinimalAgent:
         summary_prompt = {
             "Introduction": SUMMARY_INTRO,
             "Research idea": self.task_desc,
-            "Implementation": wrap_code(node.code),
+            "Implementation": wrap_code(node.code, lang=self.code_language),
             "Plan": node.plan,
             "Execution output": wrap_code(node.term_out, lang=""),
             "Analysis": node.analysis,
@@ -1083,7 +1105,7 @@ class ParallelAgent:
                 temperature=self.cfg.agent.code.temp,
             )
 
-            code = extract_code(completion_text)
+            code = extract_code(completion_text, language=self.code_language)
             nl_text = extract_text_up_to_code(completion_text)
 
             if code and nl_text:
@@ -1091,7 +1113,7 @@ class ParallelAgent:
                 return nl_text, code
             print("Plan + code extraction failed, retrying...")
             prompt["Parsing Feedback"] = (
-                "The code extraction failed. Make sure to use the format ```python ... ``` for the code blocks."
+                f"The code extraction failed. Make sure to use the format ```{self.code_language} ... ``` for the code blocks."
             )
         print("Final plan + code extraction attempt failed, giving up...")
         return "", completion_text
@@ -1203,6 +1225,7 @@ class ParallelAgent:
                     format_tb_ipython=self.cfg.exec.format_tb_ipython,
                     agent_file_name=self.cfg.exec.agent_file_name,
                     env_vars={"AI_SCIENTIST_ROOT": os.getenv("AI_SCIENTIST_ROOT")},
+                    language=self.cfg.exec.language,
                 )
 
                 try:
@@ -1227,8 +1250,13 @@ class ParallelAgent:
                         exp_results_dir.mkdir(parents=True, exist_ok=True)
 
                         # Save plotting code
+                        code_suffix = (
+                            Path(self.cfg.exec.agent_file_name).suffix or ".py"
+                        )
                         with open(
-                            exp_results_dir / "aggregation_plotting_code.py", "w"
+                            exp_results_dir
+                            / f"aggregation_plotting_code{code_suffix}",
+                            "w",
                         ) as f:
                             f.write(agg_plotting_code)
 
@@ -1314,6 +1342,7 @@ class ParallelAgent:
             timeout=cfg.exec.timeout,
             format_tb_ipython=cfg.exec.format_tb_ipython,
             agent_file_name=cfg.exec.agent_file_name,
+            language=cfg.exec.language,
         )
 
         try:
@@ -1556,12 +1585,15 @@ class ParallelAgent:
                         )
                         child_node.exp_results_dir = exp_results_dir
                         exp_results_dir.mkdir(parents=True, exist_ok=True)
-                        plot_code_path = exp_results_dir / "plotting_code.py"
+                        code_suffix = (
+                            Path(cfg.exec.agent_file_name).suffix or ".py"
+                        )
+                        plot_code_path = exp_results_dir / f"plotting_code{code_suffix}"
                         with open(plot_code_path, "w") as f:
                             f.write(plotting_code)
                         logger.info(f"Saved plotting code to {plot_code_path}")
                         # Save experiment code to experiment_results directory
-                        exp_code_path = exp_results_dir / "experiment_code.py"
+                        exp_code_path = exp_results_dir / f"experiment_code{code_suffix}"
                         with open(exp_code_path, "w") as f:
                             f.write(child_node.code)
                         logger.info(f"Saved experiment code to {exp_code_path}")
@@ -1632,7 +1664,7 @@ class ParallelAgent:
 
         hyperparam_tuning_prompt = {
             "Introduction": HYPERPARAM_PROMPT_INTRO,
-            "Base code you are working on": wrap_code(self.best_stage1_node.code),
+            "Base code you are working on": wrap_code(self.best_stage1_node.code, lang=self.code_language),
             "Previous Hyperparam Tuning Attempts": {
                 "Has been tried": tried if tried else "Nothing has been tried yet.",
             },
@@ -1681,7 +1713,7 @@ class ParallelAgent:
 
         ablation_prompt = {
             "Introduction": ABLATION_PROMPT_INTRO,
-            "Base code you are working on": wrap_code(self.best_stage3_node.code),
+            "Base code you are working on": wrap_code(self.best_stage3_node.code, lang=self.code_language),
             "Previous Ablations": {
                 "Has been tried": (
                     completed if completed else "Nothing has been tried yet."

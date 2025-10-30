@@ -2,7 +2,7 @@ import json
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
 class PromptNotFoundError(FileNotFoundError):
@@ -21,6 +21,18 @@ def _resolve_prompt_dir() -> Path:
 PROMPT_DIR = _resolve_prompt_dir()
 
 
+def _resolve_prompt_path(name: str, base_dir: Optional[Path] = None) -> Path:
+    """Resolve a prompt path relative to the configured prompt directory or a custom base."""
+    rel_path = Path(name)
+    if rel_path.suffix:
+        prompt_path = rel_path
+    else:
+        prompt_path = rel_path.with_suffix(".txt")
+
+    base = (base_dir or PROMPT_DIR).expanduser().resolve()
+    return base / prompt_path
+
+
 @lru_cache(maxsize=None)
 def load_prompt(name: str) -> str:
     """
@@ -34,11 +46,7 @@ def load_prompt(name: str) -> str:
         The prompt text with trailing whitespace preserved.
     """
 
-    rel_path = Path(name)
-    if rel_path.suffix:
-        prompt_path = PROMPT_DIR / rel_path
-    else:
-        prompt_path = PROMPT_DIR / rel_path.with_suffix(".txt")
+    prompt_path = _resolve_prompt_path(name)
 
     if not prompt_path.exists():
         raise PromptNotFoundError(f"Prompt file not found: {prompt_path}")
@@ -89,3 +97,40 @@ def load_prompt_json(name: str) -> Any:
     """
 
     return json.loads(load_prompt(name))
+
+
+def load_prompt_from_dir(name: str, base_dir: Path) -> str:
+    """
+    Load a prompt from an explicit directory, bypassing the global prompt root.
+
+    Args:
+        name: Relative path to the prompt file.
+        base_dir: Directory that should be treated as the prompt root.
+    """
+
+    prompt_path = _resolve_prompt_path(name, base_dir=base_dir)
+    if not prompt_path.exists():
+        raise PromptNotFoundError(f"Prompt file not found: {prompt_path}")
+    return prompt_path.read_text(encoding="utf-8")
+
+
+def write_prompt(
+    name: str,
+    content: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> None:
+    """
+    Write prompt content to disk, optionally targeting a custom prompt root.
+
+    Args:
+        name: Relative path to the prompt file.
+        content: Text content to write.
+        base_dir: Optional base directory; defaults to the global prompt root.
+    """
+
+    prompt_path = _resolve_prompt_path(name, base_dir=base_dir)
+    prompt_path.parent.mkdir(parents=True, exist_ok=True)
+    prompt_path.write_text(content, encoding="utf-8")
+    # Clear caches so future reads pick up the updated content.
+    load_prompt.cache_clear()

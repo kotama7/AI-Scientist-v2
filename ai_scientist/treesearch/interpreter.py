@@ -10,6 +10,7 @@ import logging
 import os
 import queue
 import signal
+import subprocess
 import sys
 import time
 import traceback
@@ -86,6 +87,7 @@ class Interpreter:
         format_tb_ipython: bool = False,
         agent_file_name: str = "runfile.py",
         env_vars: dict[str, str] = {},
+        language: str = "python",
     ):
         """
         Simulates a standalone Python REPL with an execution time limit.
@@ -107,6 +109,7 @@ class Interpreter:
         self.agent_file_name = agent_file_name
         self.process: Process = None  # type: ignore
         self.env_vars = env_vars
+        self.language = language.lower()
 
     def child_proc_setup(self, result_outq: Queue) -> None:
         # disable all warnings (before importing anything)
@@ -141,7 +144,14 @@ class Interpreter:
 
             event_outq.put(("state:ready",))
             try:
-                exec(compile(code, self.agent_file_name, "exec"), global_scope)
+                if self.language == "python":
+                    exec(compile(code, self.agent_file_name, "exec"), global_scope)
+                    event_outq.put(("state:finished", None, None, None))
+                elif self.language == "cpp":
+                    exc_tuple = self._execute_cpp(result_outq)
+                    event_outq.put(("state:finished", *exc_tuple))
+                else:
+                    raise ValueError(f"Unsupported execution language: {self.language}")
             except BaseException as e:
                 tb_str, e_cls_name, exc_info, exc_stack = exception_summary(
                     e,
@@ -154,11 +164,96 @@ class Interpreter:
                     e_cls_name = "TimeoutError"
 
                 event_outq.put(("state:finished", e_cls_name, exc_info, exc_stack))
-            else:
-                event_outq.put(("state:finished", None, None, None))
 
             # put EOF marker to indicate that we're done
             result_outq.put("<|EOF|>")
+
+    def _execute_cpp(self, result_outq: Queue) -> tuple[str | None, dict | None, list | None]:
+        """Compile and run the generated C++ code, capturing output and errors."""
+
+        source_path = Path(self.working_dir) / self.agent_file_name
+        binary_path = source_path.with_suffix("")
+
+        compile_cmd = [
+            "g++",
+            "-std=c++17",
+            "-O2",
+            str(source_path),
+            "-o",
+            str(binary_path),
+        ]
+
+        try:
+            compile_proc = subprocess.run(
+                compile_cmd,
+                cwd=str(self.working_dir),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except FileNotFoundError as exc:
+            result_outq.put("g++ compiler not found. Please install a C++ toolchain.")
+            return ("CompilationError", {"message": str(exc)}, [])
+
+        if compile_proc.stdout:
+            result_outq.put(compile_proc.stdout)
+        if compile_proc.stderr:
+            result_outq.put(compile_proc.stderr)
+
+        if compile_proc.returncode != 0:
+            return (
+                "CompilationError",
+                {
+                    "returncode": str(compile_proc.returncode),
+                    "stderr": compile_proc.stderr,
+                },
+                [],
+            )
+
+        try:
+            run_proc = subprocess.run(
+                [str(binary_path)],
+                cwd=str(self.working_dir),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=self.timeout,
+            )
+        except subprocess.TimeoutExpired:
+            result_outq.put(
+                f"TimeoutError: Execution exceeded the time limit of {humanize.naturaldelta(self.timeout)}"
+            )
+            try:
+                binary_path.unlink(missing_ok=True)  # type: ignore[arg-type]
+            except Exception:
+                pass
+            return ("TimeoutError", None, None)
+
+        if run_proc.stdout:
+            result_outq.put(run_proc.stdout)
+        if run_proc.stderr:
+            result_outq.put(run_proc.stderr)
+
+        if run_proc.returncode != 0:
+            try:
+                binary_path.unlink(missing_ok=True)  # type: ignore[arg-type]
+            except Exception:
+                pass
+            return (
+                "RuntimeError",
+                {
+                    "returncode": str(run_proc.returncode),
+                    "stderr": run_proc.stderr,
+                },
+                [],
+            )
+
+        try:
+            binary_path.unlink(missing_ok=True)  # type: ignore[arg-type]
+        except Exception:
+            pass
+
+        return (None, None, None)
 
     def create_process(self) -> None:
         # we use three queues to communicate with the child process:

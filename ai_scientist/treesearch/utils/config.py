@@ -78,11 +78,20 @@ class ExecConfig:
     timeout: int
     agent_file_name: str
     format_tb_ipython: bool
+    language: str = "python"
+    env_packages_template: str | None = None
 
 
 @dataclass
 class ExperimentConfig:
     num_syn_datasets: int
+
+
+@dataclass
+class PromptAdapterConfig:
+    model: str
+    temp: float
+    max_tokens: Optional[int] = None
 
 
 @dataclass
@@ -107,6 +116,7 @@ class Config(Hashable):
     agent: AgentConfig
     experiment: ExperimentConfig
     debug: DebugConfig
+    prompt_adapter: Optional[PromptAdapterConfig] = None
 
 
 def _get_next_logindex(dir: Path) -> int:
@@ -244,10 +254,11 @@ def save_run(cfg: Config, journal, stage_name: str = None):
     try:
         best_node = journal.get_best_node(only_good=False, cfg=cfg)
         if best_node is not None:
-            for existing_file in save_dir.glob("best_solution_*.py"):
+            suffix = Path(cfg.exec.agent_file_name).suffix or ".py"
+            for existing_file in save_dir.glob(f"best_solution_*.{suffix.lstrip('.')}"):
                 existing_file.unlink()
             # Create new best solution file
-            filename = f"best_solution_{best_node.id}.py"
+            filename = f"best_solution_{best_node.id}{suffix}"
             with open(save_dir / filename, "w") as f:
                 f.write(best_node.code)
             # save best_node.id to a text file
