@@ -425,7 +425,6 @@ if __name__ == "__main__":
         if adapt_to_cpp
         else None
     )
-
     prompt_dir = _snapshot_and_prepare_prompts(
         repo_root,
         idea_dir_path,

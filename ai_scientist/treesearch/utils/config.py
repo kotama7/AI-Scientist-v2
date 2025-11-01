@@ -80,6 +80,7 @@ class ExecConfig:
     format_tb_ipython: bool
     language: str = "python"
     env_packages_template: str | None = None
+    cpp_compile_flags: list[str] | None = None
 
 
 @dataclass

@@ -1226,6 +1226,7 @@ class ParallelAgent:
                     agent_file_name=self.cfg.exec.agent_file_name,
                     env_vars={"AI_SCIENTIST_ROOT": os.getenv("AI_SCIENTIST_ROOT")},
                     language=self.cfg.exec.language,
+                    cpp_compile_flags=self.cfg.exec.cpp_compile_flags,
                 )
 
                 try:
@@ -1343,6 +1344,7 @@ class ParallelAgent:
             format_tb_ipython=cfg.exec.format_tb_ipython,
             agent_file_name=cfg.exec.agent_file_name,
             language=cfg.exec.language,
+            cpp_compile_flags=cfg.exec.cpp_compile_flags,
         )
 
         try:

@@ -9,6 +9,7 @@ Supports:
 import logging
 import os
 import queue
+import shlex
 import signal
 import subprocess
 import sys
@@ -17,6 +18,7 @@ import traceback
 from dataclasses import dataclass
 from multiprocessing import Process, Queue
 from pathlib import Path
+from typing import Optional, Sequence
 
 import humanize
 from dataclasses_json import DataClassJsonMixin
@@ -88,6 +90,7 @@ class Interpreter:
         agent_file_name: str = "runfile.py",
         env_vars: dict[str, str] = {},
         language: str = "python",
+        cpp_compile_flags: Optional[Sequence[str]] = None,
     ):
         """
         Simulates a standalone Python REPL with an execution time limit.
@@ -110,6 +113,7 @@ class Interpreter:
         self.process: Process = None  # type: ignore
         self.env_vars = env_vars
         self.language = language.lower()
+        self.cpp_compile_flags = list(cpp_compile_flags) if cpp_compile_flags else None
 
     def child_proc_setup(self, result_outq: Queue) -> None:
         # disable all warnings (before importing anything)
@@ -174,10 +178,10 @@ class Interpreter:
         source_path = Path(self.working_dir) / self.agent_file_name
         binary_path = source_path.with_suffix("")
 
+        default_flags = self.cpp_compile_flags or ["-std=c++17", "-O2"]
         compile_cmd = [
             "g++",
-            "-std=c++17",
-            "-O2",
+            *default_flags,
             str(source_path),
             "-o",
             str(binary_path),

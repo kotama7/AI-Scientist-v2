@@ -1,6 +1,8 @@
 import os
 import os.path as osp
 import shutil
+from typing import Sequence
+
 import yaml
 
 
@@ -52,6 +54,7 @@ def edit_bfts_config_file(
     language: str | None = None,
     agent_file_name: str | None = None,
     env_packages_template: str | None = None,
+    cpp_compile_flags: Sequence[str] | None = None,
 ) -> str:
     """
     Edit the bfts_config.yaml file to point to the idea.md file
@@ -88,6 +91,8 @@ def edit_bfts_config_file(
         exec_cfg["agent_file_name"] = agent_file_name
     if env_packages_template is not None:
         exec_cfg["env_packages_template"] = env_packages_template
+    if cpp_compile_flags is not None:
+        exec_cfg["cpp_compile_flags"] = list(cpp_compile_flags)
 
     with open(run_config_path, "w") as f:
         yaml.dump(config, f)
